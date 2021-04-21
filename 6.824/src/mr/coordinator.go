@@ -11,8 +11,10 @@ import (
 
 type Coordinator struct {
 	// Your definitions here.
-	files   []string
+	tasks   []Task
+	pairs   []KeyValue
 	nReduce int
+	timeOut int
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -24,6 +26,38 @@ type Coordinator struct {
 //
 func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
 	reply.Y = args.X + 1
+	return nil
+}
+
+func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
+	fmt.Println("Coordinator: Preparing task for Worker")
+	for _, task := range c.tasks {
+		if !task.Done {
+
+			// enc := gob.NewEncoder(&reply.Message)
+			// err := enc.Encode(task)
+			// if err != nil {
+			// 	fmt.Println("encode error:", err)
+			// }
+			// fmt.Printf("reply.Message : %T %v\n", reply.Message, reply.Message)
+
+			fmt.Printf("task: %T %v\n", task, task)
+
+			// reply = &task
+			reply.Which = task.Which
+			reply.FileName = task.FileName
+			// reply.Pairs = task.Pairs
+			reply.Key = task.Key
+			reply.Values = task.Values
+			reply.Result = task.Result
+			reply.Done = task.Done
+			reply.Failed = task.Failed
+
+			fmt.Printf("reply : %T %v\n", reply, reply)
+
+			return nil
+		}
+	}
 	return nil
 }
 
@@ -62,8 +96,14 @@ func (c *Coordinator) Done() bool {
 //
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
-
-	fmt.Println(files)
+	c.nReduce = nReduce
+	for i, fileName := range files {
+		task := Task{}
+		task.Which = "map"
+		task.FileName = fileName
+		c.tasks = append(c.tasks, task)
+		fmt.Printf("%d %T %v\n", i, task, task)
+	}
 	// Your code here.
 
 	c.server()

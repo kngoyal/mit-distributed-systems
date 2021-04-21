@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 	"log"
 	"net/rpc"
+	"reflect"
 )
 
 //
@@ -34,8 +35,13 @@ func Worker(mapf func(string, string) []KeyValue,
 	// Your worker implementation here.
 
 	// uncomment to send the Example RPC to the coordinator.
-	// CallExample()
+	CallExample()
+	GetTask()
 
+}
+
+func getType(myvar interface{}) string {
+	return reflect.TypeOf(myvar).String()
 }
 
 //
@@ -59,6 +65,21 @@ func CallExample() {
 
 	// reply.Y should be 100.
 	fmt.Printf("reply.Y %v\n", reply.Y)
+}
+
+func GetTask() {
+
+	fmt.Println("Worker: Getting task from Coordinator")
+
+	args := Args{}
+	reply := Task{}
+
+	// send the RPC request, wait for the reply.
+	call("Coordinator.GiveTask", &args, &reply)
+
+	// var task Task
+	fmt.Printf("reply : %T %v\n", reply, reply)
+
 }
 
 //
