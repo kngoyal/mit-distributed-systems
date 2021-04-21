@@ -3,9 +3,10 @@ package mr
 import (
 	"fmt"
 	"hash/fnv"
+	"io/ioutil"
 	"log"
 	"net/rpc"
-	"reflect"
+	"os"
 )
 
 //
@@ -36,12 +37,23 @@ func Worker(mapf func(string, string) []KeyValue,
 
 	// uncomment to send the Example RPC to the coordinator.
 	CallExample()
-	GetTask()
+	task := GetTask()
 
-}
-
-func getType(myvar interface{}) string {
-	return reflect.TypeOf(myvar).String()
+	switch task.Which {
+	case "map":
+		file, err := os.Open(task.FileName)
+		if err != nil {
+			log.Fatalf("WORKER : cannot open %v", task.FileName)
+		}
+		content, err := ioutil.ReadAll(file)
+		if err != nil {
+			log.Fatalf("WORKER : cannot read %v", task.FileName)
+		}
+		file.Close()
+		kva := mapf(task.FileName, string(content))
+		fmt.Println(kva)
+		PutPairs(kva)
+	}
 }
 
 //
@@ -67,19 +79,30 @@ func CallExample() {
 	fmt.Printf("reply.Y %v\n", reply.Y)
 }
 
-func GetTask() {
-
+func GetTask() Task {
 	fmt.Println("Worker: Getting task from Coordinator")
-
 	args := Args{}
-	reply := Task{}
+	task := Task{}
 
 	// send the RPC request, wait for the reply.
-	call("Coordinator.GiveTask", &args, &reply)
+	call("Coordinator.GiveTask", &args, &task)
 
 	// var task Task
-	fmt.Printf("reply : %T %v\n", reply, reply)
+	fmt.Printf("task : %T %v\n", task, task)
 
+	return task
+}
+
+func PutPairs(kva []KeyValue) {
+	fmt.Println("Worker: Getting task from Coordinator")
+	args := Args{}
+	task := Task{Pairs: kva}
+
+	// send the RPC request, wait for the reply.
+	call("Coordinator.TakePairs", &task, &args)
+
+	// var task Task
+	fmt.Printf("task : %T %v\n", task, task)
 }
 
 //

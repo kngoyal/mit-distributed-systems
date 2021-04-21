@@ -33,31 +33,24 @@ func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
 	fmt.Println("Coordinator: Preparing task for Worker")
 	for _, task := range c.tasks {
 		if !task.Done {
-
-			// enc := gob.NewEncoder(&reply.Message)
-			// err := enc.Encode(task)
-			// if err != nil {
-			// 	fmt.Println("encode error:", err)
-			// }
-			// fmt.Printf("reply.Message : %T %v\n", reply.Message, reply.Message)
-
 			fmt.Printf("task: %T %v\n", task, task)
-
-			// reply = &task
-			reply.Which = task.Which
-			reply.FileName = task.FileName
-			// reply.Pairs = task.Pairs
-			reply.Key = task.Key
-			reply.Values = task.Values
-			reply.Result = task.Result
-			reply.Done = task.Done
-			reply.Failed = task.Failed
+			switch task.Which {
+			case "map":
+				reply.Which = task.Which
+				reply.FileName = task.FileName
+			}
 
 			fmt.Printf("reply : %T %v\n", reply, reply)
-
 			return nil
 		}
 	}
+	return nil
+}
+
+func (c *Coordinator) TakePairs(args *Task, reply *Args) error {
+	c.pairs = args.Pairs
+	fmt.Println("Pairs received :")
+	fmt.Println(c.pairs)
 	return nil
 }
 

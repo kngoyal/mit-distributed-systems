@@ -35,6 +35,7 @@ type Task struct {
 	Result   string
 	Done     bool
 	Failed   bool
+	Pairs    []KeyValue
 }
 
 // Add your RPC definitions here.
