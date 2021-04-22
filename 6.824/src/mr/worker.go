@@ -59,6 +59,8 @@ L:
 			SendCount(task)
 		case "wait":
 			continue L
+		case "shutdown":
+			break L
 		}
 	}
 }

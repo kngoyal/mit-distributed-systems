@@ -104,6 +104,7 @@ func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
 				return nil
 			}
 		}
+		reply.Which = "shutdown"
 	}
 	return nil
 }
@@ -116,7 +117,6 @@ func (c *Coordinator) TakePairs(args *Task, reply *Args) error {
 }
 
 func (c *Coordinator) ReceiveCount(args *Task, reply *Args) error {
-	fmt.Fprintf(c.outputFile, "%v %v\n", args.Key, args.Result)
 	fmt.Printf("C: Task '%v' finished\n", args.Name)
 	delete(c.tasks, args.Name)
 	if len(c.tasks) == 0 {
