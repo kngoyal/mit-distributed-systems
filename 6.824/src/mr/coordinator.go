@@ -117,9 +117,10 @@ func (c *Coordinator) TakePairs(args *Task, reply *Args) error {
 }
 
 func (c *Coordinator) ReceiveCount(args *Task, reply *Args) error {
+	fmt.Fprintf(c.outputFile, "%v %v\n", args.Key, args.Result)
 	fmt.Printf("C: Task '%v' finished\n", args.Name)
 	delete(c.tasks, args.Name)
-	if len(c.tasks) == 0 {
+	if c.reduceReady && len(c.tasks) == 0 {
 		c.terminate = true
 	}
 	return nil
@@ -146,7 +147,6 @@ func (c *Coordinator) server() {
 // if the entire job has finished.
 //
 func (c *Coordinator) Done() bool {
-	fmt.Printf("Tasks left to be processed: %v\n", len(c.tasks))
 	if c.terminate {
 		c.outputFile.Close()
 		return true
