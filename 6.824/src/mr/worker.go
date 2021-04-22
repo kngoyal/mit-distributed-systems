@@ -37,22 +37,29 @@ func Worker(mapf func(string, string) []KeyValue,
 
 	// uncomment to send the Example RPC to the coordinator.
 	CallExample()
-	task := GetTask()
-
-	switch task.Which {
-	case "map":
-		file, err := os.Open(task.FileName)
-		if err != nil {
-			log.Fatalf("WORKER : cannot open %v", task.FileName)
+L:
+	for {
+		task := GetTask()
+		fmt.Println(task)
+		switch task.Which {
+		case "map":
+			file, err := os.Open(task.FileName)
+			if err != nil {
+				log.Fatalf("WORKER : cannot open '%v'", task.FileName)
+			}
+			content, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatalf("WORKER : cannot read '%v'", task.FileName)
+			}
+			file.Close()
+			task.Pairs = mapf(task.FileName, string(content))
+			PutPairs(task)
+		case "reduce":
+			task.Result = reducef(task.Key, task.Values)
+			SendCount(task)
+		case "wait":
+			continue L
 		}
-		content, err := ioutil.ReadAll(file)
-		if err != nil {
-			log.Fatalf("WORKER : cannot read %v", task.FileName)
-		}
-		file.Close()
-		kva := mapf(task.FileName, string(content))
-		fmt.Println(kva)
-		PutPairs(kva)
 	}
 }
 
@@ -80,7 +87,7 @@ func CallExample() {
 }
 
 func GetTask() Task {
-	fmt.Println("Worker: Getting task from Coordinator")
+	fmt.Println("W: Getting task from C")
 	args := Args{}
 	task := Task{}
 
@@ -88,21 +95,25 @@ func GetTask() Task {
 	call("Coordinator.GiveTask", &args, &task)
 
 	// var task Task
-	fmt.Printf("task : %T %v\n", task, task)
+	fmt.Printf("W: Received task '%v' from C\n", task.Name)
 
 	return task
 }
 
-func PutPairs(kva []KeyValue) {
-	fmt.Println("Worker: Getting task from Coordinator")
+func PutPairs(task Task) {
+	fmt.Printf("W: Sending '%v' task result to C\n", task.Name)
 	args := Args{}
-	task := Task{Pairs: kva}
 
 	// send the RPC request, wait for the reply.
 	call("Coordinator.TakePairs", &task, &args)
+}
 
-	// var task Task
-	fmt.Printf("task : %T %v\n", task, task)
+func SendCount(task Task) {
+	fmt.Printf("W: Sending '%v' task result to C\n", task.Name)
+	args := Args{}
+
+	// send the RPC request, wait for the reply.
+	call("Coordinator.ReceiveCount", &task, &args)
 }
 
 //

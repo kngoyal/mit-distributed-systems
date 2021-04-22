@@ -28,14 +28,14 @@ type ExampleReply struct {
 type Args struct{}
 
 type Task struct {
-	Which    string
-	FileName string
-	Key      string
-	Values   []string
-	Result   string
-	Done     bool
-	Failed   bool
-	Pairs    []KeyValue
+	Which     string
+	Name      string
+	FileName  string
+	Key       string
+	Values    []string
+	Result    string
+	Available bool
+	Pairs     []KeyValue
 }
 
 // Add your RPC definitions here.
