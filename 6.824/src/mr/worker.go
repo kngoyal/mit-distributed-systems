@@ -3,10 +3,8 @@ package mr
 import (
 	"fmt"
 	"hash/fnv"
-	"io/ioutil"
 	"log"
 	"net/rpc"
-	"os"
 )
 
 //
@@ -36,33 +34,8 @@ func Worker(mapf func(string, string) []KeyValue,
 	// Your worker implementation here.
 
 	// uncomment to send the Example RPC to the coordinator.
-	CallExample()
-L:
-	for {
-		task := GetTask()
-		fmt.Println(task)
-		switch task.Which {
-		case "map":
-			file, err := os.Open(task.FileName)
-			if err != nil {
-				log.Fatalf("WORKER : cannot open '%v'", task.FileName)
-			}
-			content, err := ioutil.ReadAll(file)
-			if err != nil {
-				log.Fatalf("WORKER : cannot read '%v'", task.FileName)
-			}
-			file.Close()
-			task.Pairs = mapf(task.FileName, string(content))
-			PutPairs(task)
-		case "reduce":
-			task.Result = reducef(task.Key, task.Values)
-			SendCount(task)
-		case "wait":
-			continue L
-		case "shutdown":
-			break L
-		}
-	}
+	// CallExample()
+
 }
 
 //
@@ -86,36 +59,6 @@ func CallExample() {
 
 	// reply.Y should be 100.
 	fmt.Printf("reply.Y %v\n", reply.Y)
-}
-
-func GetTask() Task {
-	fmt.Println("W: Getting task from C")
-	args := Args{}
-	task := Task{}
-
-	// send the RPC request, wait for the reply.
-	call("Coordinator.GiveTask", &args, &task)
-
-	// var task Task
-	fmt.Printf("W: Received task '%v' from C\n", task.Name)
-
-	return task
-}
-
-func PutPairs(task Task) {
-	fmt.Printf("W: Sending '%v' task result to C\n", task.Name)
-	args := Args{}
-
-	// send the RPC request, wait for the reply.
-	call("Coordinator.TakePairs", &task, &args)
-}
-
-func SendCount(task Task) {
-	fmt.Printf("W: Sending '%v' task result to C\n", task.Name)
-	args := Args{}
-
-	// send the RPC request, wait for the reply.
-	call("Coordinator.ReceiveCount", &task, &args)
 }
 
 //
