@@ -35,7 +35,6 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
-
 	// uncomment to send the Example RPC to the coordinator.
 	CallExample()
 L:
@@ -64,6 +63,7 @@ L:
 			break L
 		}
 	}
+
 }
 
 //
