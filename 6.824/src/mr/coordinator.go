@@ -80,6 +80,8 @@ func (c *Coordinator) CreateReduceTasks() {
 }
 
 func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	log.Debug("C: Preparing task for W %v\n", c.reduceReady)
 	log.Debug("W: %d Tasks left\n", len(c.tasks))
 	if !c.reduceReady {
@@ -113,6 +115,8 @@ func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
 }
 
 func (c *Coordinator) TakePairs(args *Task, reply *Args) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.pairs = append(c.pairs, args.Pairs...)
 	log.Debug("C: Task '%v' finished\n", args.Name)
 	delete(c.tasks, args.Name)
