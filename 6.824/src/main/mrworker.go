@@ -15,7 +15,7 @@ import (
 	"plugin"
 
 	logger "github.com/mit-distributed-systems/6.824/src/logger"
-	mr "github.com/mit-distributed-systems/6.824/src/mr/concurrent"
+	mr "github.com/mit-distributed-systems/6.824/src/mr/channel"
 	log "github.com/sirupsen/logrus"
 )
 
