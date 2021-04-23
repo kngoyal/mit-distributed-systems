@@ -23,7 +23,7 @@ func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
 type Coordinator struct {
 	// Your definitions here.
-	tasks          chan Task
+	tasks          map[string]Task
 	pairs          []KeyValue
 	reduceReady    bool
 	nReduce        int
@@ -67,7 +67,6 @@ func (c *Coordinator) CreateReduceTasks() {
 		for k := i; k < j; k++ {
 			task.Values = append(task.Values, c.pairs[k].Value)
 		}
-
 		c.tasks[task.Name] = task
 		log.Debug("C: Task '%v' created\n", task.Name)
 
@@ -77,7 +76,7 @@ func (c *Coordinator) CreateReduceTasks() {
 	c.outputFileName = "mr-out-concurrent"
 	c.outputFile, _ = os.Create(c.outputFileName)
 
-	close(c.tasks)
+	c.reduceReady = true
 }
 
 func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
@@ -86,36 +85,31 @@ func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
 	log.Debug("C: Preparing task for W %v\n", c.reduceReady)
 	log.Debug("W: %d Tasks left\n", len(c.tasks))
 	if !c.reduceReady {
-		select {
-		case task := <-c.tasks:
+		for name, task := range c.tasks {
 			if task.Available && task.Which == "map" {
-				reply.Name = task.Name
+				reply.Name = name
 				reply.Which = task.Which
 				reply.FileName = task.FileName
 				reply.Available = false
-				// c.tasks[name] = *reply
+				c.tasks[name] = *reply
 				return nil
 			}
-		default:
-			c.reduceReady = true
-			c.CreateReduceTasks()
-			reply.Which = "wait"
 		}
+		c.CreateReduceTasks()
+		reply.Which = "wait"
 	} else {
 		for name, task := range c.tasks {
 			if task.Available && task.Which == "reduce" {
-				reply.Name = task.Name
+				reply.Name = name
 				reply.Which = task.Which
 				reply.Key = task.Key
 				reply.Values = task.Values
 				reply.Available = false
-				// c.tasks[name] = *reply
+				c.tasks[name] = *reply
 				return nil
 			}
-		default:
-			c.terminate = true
-			reply.Which = "shutdown"
 		}
+		reply.Which = "shutdown"
 	}
 	return nil
 }
@@ -124,7 +118,6 @@ func (c *Coordinator) TakePairs(args *Task, reply *Args) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.pairs = append(c.pairs, args.Pairs...)
-
 	log.Debug("C: Task '%v' finished\n", args.Name)
 	delete(c.tasks, args.Name)
 	return nil
@@ -134,7 +127,6 @@ func (c *Coordinator) ReceiveCount(args *Task, reply *Args) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	fmt.Fprintf(c.outputFile, "%v %v\n", args.Key, args.Result)
-
 	log.Debug("C: Task '%v' finished\n", args.Name)
 	delete(c.tasks, args.Name)
 	if c.reduceReady && len(c.tasks) == 0 {
@@ -180,7 +172,6 @@ func (c *Coordinator) Done() bool {
 //
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
-
 
 	c.tasks = make(map[string]Task)
 	c.nReduce = nReduce
