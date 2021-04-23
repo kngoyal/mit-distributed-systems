@@ -73,7 +73,6 @@ func (c *Coordinator) CreateReduceTasks() {
 		i = j
 	}
 
-	c.outputFileName = "mr-out-concurrent"
 	c.outputFile, _ = os.Create(c.outputFileName)
 
 	c.reduceReady = true
@@ -173,6 +172,7 @@ func (c *Coordinator) Done() bool {
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
 
+	c.outputFileName = "mr-out-concurrent"
 	c.tasks = make(map[string]Task)
 	c.nReduce = nReduce
 	for i, fileName := range files {
