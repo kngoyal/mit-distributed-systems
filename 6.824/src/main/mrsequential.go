@@ -14,7 +14,7 @@ import (
 	"plugin"
 	"sort"
 
-	mr "github.com/mit-distributed-systems/6.824/src/mr"
+	mr "github.com/mit-distributed-systems/6.824/src/mrconcurrent"
 )
 
 // for sorting by key.

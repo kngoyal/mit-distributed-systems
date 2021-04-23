@@ -1,4 +1,4 @@
-package mr
+package mrconcurrent
 
 import (
 	"fmt"

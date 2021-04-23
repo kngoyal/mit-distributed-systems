@@ -14,7 +14,7 @@ import (
 	"time"
 
 	logger "github.com/mit-distributed-systems/6.824/src/logger"
-	mr "github.com/mit-distributed-systems/6.824/src/mr"
+	mr "github.com/mit-distributed-systems/6.824/src/mrconcurrent"
 	log "github.com/sirupsen/logrus"
 )
 
