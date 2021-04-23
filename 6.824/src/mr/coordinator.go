@@ -2,7 +2,6 @@ package mr
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -10,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // for sorting by key.
@@ -67,19 +68,20 @@ func (c *Coordinator) CreateReduceTasks() {
 			task.Values = append(task.Values, c.pairs[k].Value)
 		}
 		c.tasks[task.Name] = task
-		fmt.Printf("C: Task '%v' created\n", task.Name)
+		log.Debug("C: Task '%v' created\n", task.Name)
 
 		i = j
 	}
 
-	c.outputFileName = "mr-out-1"
+	c.outputFileName = "mr-out-concurrent"
 	c.outputFile, _ = os.Create(c.outputFileName)
 
 	c.reduceReady = true
 }
 
 func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
-	fmt.Printf("C: Preparing task for W %v\n", c.reduceReady)
+	log.Debug("C: Preparing task for W %v\n", c.reduceReady)
+	log.Debug("W: %d Tasks left\n", len(c.tasks))
 	if !c.reduceReady {
 		for name, task := range c.tasks {
 			if task.Available && task.Which == "map" {
@@ -94,7 +96,6 @@ func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
 		c.CreateReduceTasks()
 		reply.Which = "wait"
 	} else {
-		fmt.Printf("W: %d Tasks left\n", len(c.tasks))
 		for name, task := range c.tasks {
 			if task.Available && task.Which == "reduce" {
 				reply.Name = name
@@ -113,7 +114,7 @@ func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
 
 func (c *Coordinator) TakePairs(args *Task, reply *Args) error {
 	c.pairs = append(c.pairs, args.Pairs...)
-	fmt.Printf("C: Task '%v' finished\n", args.Name)
+	log.Debug("C: Task '%v' finished\n", args.Name)
 	delete(c.tasks, args.Name)
 	return nil
 }
@@ -122,7 +123,7 @@ func (c *Coordinator) ReceiveCount(args *Task, reply *Args) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	fmt.Fprintf(c.outputFile, "%v %v\n", args.Key, args.Result)
-	fmt.Printf("C: Task '%v' finished\n", args.Name)
+	log.Debug("C: Task '%v' finished\n", args.Name)
 	delete(c.tasks, args.Name)
 	if c.reduceReady && len(c.tasks) == 0 {
 		c.terminate = true
@@ -176,7 +177,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		task.Available = true
 		c.tasks[task.Which+"-"+strconv.Itoa(i)] = task
 	}
-	fmt.Printf("%T %v\n", c.tasks, c.tasks)
+	log.Info("%T %v\n", c.tasks, c.tasks)
 
 	c.server()
 	return &c

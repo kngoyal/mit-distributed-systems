@@ -7,9 +7,10 @@ package mr
 //
 
 import (
-	"fmt"
 	"os"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 )
 
 //
@@ -47,6 +48,6 @@ type Task struct {
 func coordinatorSock() string {
 	s := "/var/tmp/824-mr-wc-"
 	s += strconv.Itoa(os.Getuid())
-	fmt.Printf("sockname: %s\n", s)
+	log.Debug("sockname: %s\n", s)
 	return s
 }

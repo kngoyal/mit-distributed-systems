@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io/ioutil"
-	"log"
 	"net/rpc"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 //
@@ -40,7 +41,7 @@ func Worker(mapf func(string, string) []KeyValue,
 L:
 	for {
 		task := GetTask()
-		fmt.Println(task)
+		log.Debug(task)
 		switch task.Which {
 		case "map":
 			file, err := os.Open(task.FileName)
@@ -89,7 +90,7 @@ func CallExample() {
 }
 
 func GetTask() Task {
-	fmt.Println("W: Getting task from C")
+	log.Debug("W: Getting task from C")
 	args := Args{}
 	task := Task{}
 
@@ -97,13 +98,13 @@ func GetTask() Task {
 	call("Coordinator.GiveTask", &args, &task)
 
 	// var task Task
-	fmt.Printf("W: Received task '%v' from C\n", task.Name)
+	log.Debug("W: Received task '%v' from C\n", task.Name)
 
 	return task
 }
 
 func PutPairs(task Task) {
-	fmt.Printf("W: Sending '%v' task result to C\n", task.Name)
+	log.Debug("W: Sending '%v' task result to C\n", task.Name)
 	args := Args{}
 
 	// send the RPC request, wait for the reply.
@@ -111,7 +112,7 @@ func PutPairs(task Task) {
 }
 
 func SendCount(task Task) {
-	fmt.Printf("W: Sending '%v' task result to C\n", task.Name)
+	log.Debug("W: Sending '%v' task result to C\n", task.Name)
 	args := Args{}
 
 	// send the RPC request, wait for the reply.
@@ -137,6 +138,6 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 		return true
 	}
 
-	fmt.Println(err)
+	log.Error(err)
 	return false
 }
