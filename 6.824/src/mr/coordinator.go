@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"sync"
 )
 
 // for sorting by key.
@@ -29,6 +30,7 @@ type Coordinator struct {
 	outputFileName string
 	outputFile     *os.File
 	terminate      bool
+	mu             sync.Mutex
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -117,6 +119,8 @@ func (c *Coordinator) TakePairs(args *Task, reply *Args) error {
 }
 
 func (c *Coordinator) ReceiveCount(args *Task, reply *Args) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	fmt.Fprintf(c.outputFile, "%v %v\n", args.Key, args.Result)
 	fmt.Printf("C: Task '%v' finished\n", args.Name)
 	delete(c.tasks, args.Name)
@@ -147,6 +151,8 @@ func (c *Coordinator) server() {
 // if the entire job has finished.
 //
 func (c *Coordinator) Done() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.terminate {
 		c.outputFile.Close()
 		return true
