@@ -14,7 +14,7 @@ import (
 	"plugin"
 	"sort"
 
-	"6.824/mr"
+	mr "github.com/mit-distributed-systems/6.824/src/mrconcurrent"
 )
 
 // for sorting by key.
@@ -61,7 +61,7 @@ func main() {
 
 	sort.Sort(ByKey(intermediate))
 
-	oname := "mr-out-0"
+	oname := "mr-out-sequential"
 	ofile, _ := os.Create(oname)
 
 	//
