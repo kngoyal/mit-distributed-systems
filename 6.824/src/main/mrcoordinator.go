@@ -10,16 +10,18 @@ package main
 //
 
 import (
-	"fmt"
 	"os"
 	"time"
 
-	"6.824/mr"
+	logger "github.com/mit-distributed-systems/6.824/src/logger"
+	mr "github.com/mit-distributed-systems/6.824/src/mrconcurrent"
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
+	logger.SetLogLevel()
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: mrcoordinator inputfiles...\n")
+		log.Error(os.Stderr, "Usage: mrcoordinator inputfiles...\n")
 		os.Exit(1)
 	}
 

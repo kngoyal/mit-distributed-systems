@@ -1,4 +1,4 @@
-package mr
+package mrconcurrent
 
 //
 // RPC definitions.
@@ -9,6 +9,8 @@ package mr
 import (
 	"os"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 )
 
 //
@@ -26,6 +28,19 @@ type ExampleReply struct {
 
 // Add your RPC definitions here.
 
+type Args struct{}
+
+type Task struct {
+	Which     string
+	Name      string
+	FileName  string
+	Key       string
+	Values    []string
+	Result    string
+	Available bool
+	Pairs     []KeyValue
+}
+
 // Cook up a unique-ish UNIX-domain socket name
 // in /var/tmp, for the coordinator.
 // Can't use the current directory since
@@ -33,5 +48,6 @@ type ExampleReply struct {
 func coordinatorSock() string {
 	s := "/var/tmp/824-mr-wc"
 	s += strconv.Itoa(os.Getuid())
+	log.Debug("sockname: %s\n", s)
 	return s
 }

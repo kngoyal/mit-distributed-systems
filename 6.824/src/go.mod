@@ -1,5 +1,5 @@
-module 6.824
+module github.com/mit-distributed-systems/6.824/src
 
-go 1.15
+go 1.16
 
-require golang.org/x/tools/gopls v0.6.10 // indirect
+require github.com/sirupsen/logrus v1.8.1 // indirect
