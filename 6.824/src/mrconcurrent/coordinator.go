@@ -11,8 +11,15 @@ import (
 	"sync"
 
 	log "github.com/sirupsen/logrus"
-
 )
+
+// for sorting by key.
+type ByKey []KeyValue
+
+// for sorting by key.
+func (a ByKey) Len() int           { return len(a) }
+func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
 type Coordinator struct {
 	// Your definitions here.
@@ -128,7 +135,6 @@ func (c *Coordinator) ReceiveCount(args *Task, reply *Args) error {
 	return nil
 }
 
-
 //
 // start a thread that listens for RPCs from worker.go
 //
@@ -150,7 +156,6 @@ func (c *Coordinator) server() {
 // if the entire job has finished.
 //
 func (c *Coordinator) Done() bool {
-<<<<<<< HEAD
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.terminate {
@@ -158,13 +163,6 @@ func (c *Coordinator) Done() bool {
 		return true
 	}
 	return false
-=======
-	ret := false
-
-	// Your code here.
-
-	return ret
->>>>>>> master
 }
 
 //
@@ -174,7 +172,7 @@ func (c *Coordinator) Done() bool {
 //
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
-<<<<<<< HEAD
+
 	c.tasks = make(map[string]Task)
 	c.nReduce = nReduce
 	for i, fileName := range files {
@@ -185,11 +183,6 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		c.tasks[task.Which+"-"+strconv.Itoa(i)] = task
 	}
 	log.Info("%T %v\n", c.tasks, c.tasks)
-=======
-
-	fmt.Println(files)
-	// Your code here.
->>>>>>> master
 
 	c.server()
 	return &c
