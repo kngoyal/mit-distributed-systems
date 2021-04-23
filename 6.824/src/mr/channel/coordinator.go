@@ -1,4 +1,4 @@
-package mrconcurrent
+package mrchannel
 
 import (
 	"fmt"
@@ -25,6 +25,7 @@ type Coordinator struct {
 	// Your definitions here.
 	tasks          chan Task
 	pairs          []KeyValue
+	reduceProgress bool
 	reduceReady    bool
 	nReduce        int
 	timeOut        int
@@ -47,9 +48,11 @@ func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
 }
 
 func (c *Coordinator) CreateReduceTasks() {
+	log.Info("C: Creating reduce tasks")
 	sort.Sort(ByKey(c.pairs))
 
 	i := 0
+
 	for i < len(c.pairs) {
 		j := i + 1
 
@@ -68,23 +71,21 @@ func (c *Coordinator) CreateReduceTasks() {
 			task.Values = append(task.Values, c.pairs[k].Value)
 		}
 
+		log.Infof("C: Task '%v' created", task.Name)
+
 		c.tasks <- task
-		fmt.Printf("C: Task '%v' created\n", task.Name)
+
+		log.Infof("C: Task '%v' out on channel", task.Name)
 
 		i = j
 	}
-
-	c.outputFileName = "mr-out-concurrent"
-	c.outputFile, _ = os.Create(c.outputFileName)
 
 	close(c.tasks)
 }
 
 func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	log.Debug("C: Preparing task for W %v\n", c.reduceReady)
-	log.Debug("W: %d Tasks left\n", len(c.tasks))
+	log.Infof("C: Preparing task for W %v", c.reduceReady)
+	log.Infof("W: %d Tasks left", len(c.tasks))
 	if !c.reduceReady {
 		select {
 		case task := <-c.tasks:
@@ -93,13 +94,13 @@ func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
 				reply.Which = task.Which
 				reply.FileName = task.FileName
 				reply.Available = false
-				// c.tasks[name] = *reply
 				return nil
 			}
 		default:
-			c.reduceReady = true
-			c.CreateReduceTasks()
+			go c.CreateReduceTasks()
 			reply.Which = "wait"
+			c.reduceReady = true
+			return nil
 		}
 	} else {
 		select {
@@ -110,30 +111,26 @@ func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
 				reply.Key = task.Key
 				reply.Values = task.Values
 				reply.Available = false
-				// c.tasks[name] = *reply
 				return nil
 			}
-		default:
-			c.terminate = true
-			reply.Which = "shutdown"
 		}
 	}
+	reply.Which = "shutdown"
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.terminate = true
 	return nil
 }
 
 func (c *Coordinator) TakePairs(args *Task, reply *Args) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.pairs = append(c.pairs, args.Pairs...)
-	fmt.Printf("C: Task '%v' finished\n", args.Name)
+	log.Infof("C: Task '%v' finished", args.Name)
 	return nil
 }
 
 func (c *Coordinator) ReceiveCount(args *Task, reply *Args) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	fmt.Fprintf(c.outputFile, "%v %v\n", args.Key, args.Result)
-	fmt.Printf("C: Task '%v' finished\n", args.Name)
+	log.Infof("C: Task '%v' finished", args.Name)
 	return nil
 }
 
@@ -174,8 +171,13 @@ func (c *Coordinator) Done() bool {
 //
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
+
+	c.outputFileName = "mr-out-channel"
+	c.outputFile, _ = os.Create(c.outputFileName)
+
 	c.nReduce = nReduce
-	c.tasks = make(chan Task, c.nReduce)
+	c.tasks = make(chan Task)
+
 	go func() {
 		for i, fileName := range files {
 			task := Task{}
@@ -183,7 +185,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 			task.FileName = fileName
 			task.Available = true
 			task.Name = task.Which + "-" + strconv.Itoa(i)
-			fmt.Printf("%T %v\n", task, task)
+			log.Infof("%T %v", task, task)
 			c.tasks <- task
 		}
 	}()
