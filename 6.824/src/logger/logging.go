@@ -10,12 +10,12 @@ func SetLogLevel() {
 	lvl, ok := os.LookupEnv("GO_LOG_LEVEL")
 	// LOG_LEVEL not set, let's default to info
 	if !ok {
-		lvl = "info"
+		lvl = "debug"
 	}
 	// parse string, this is built-in feature of logrus
 	ll, err := log.ParseLevel(lvl)
 	if err != nil {
-		ll = log.InfoLevel
+		ll = log.DebugLevel
 	}
 	// set global log level
 	log.SetLevel(ll)
