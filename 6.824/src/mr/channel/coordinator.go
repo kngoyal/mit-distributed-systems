@@ -23,7 +23,8 @@ func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
 type Coordinator struct {
 	// Your definitions here.
-	tasks          chan Task
+	mapTasks       chan Task
+	reduceTasks    chan Task
 	pairs          []KeyValue
 	reduceProgress bool
 	reduceReady    bool
@@ -48,7 +49,11 @@ func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
 }
 
 func (c *Coordinator) CreateReduceTasks() {
-	log.Info("C: Creating reduce tasks")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	log.Info("C: Creating Reduce tasks")
+	c.reduceTasks = make(chan Task)
+
 	sort.Sort(ByKey(c.pairs))
 
 	i := 0
@@ -71,40 +76,46 @@ func (c *Coordinator) CreateReduceTasks() {
 			task.Values = append(task.Values, c.pairs[k].Value)
 		}
 
-		log.Infof("C: Task '%v' created", task.Name)
+		log.Debugf("C: Task '%v' created", task.Name)
 
-		c.tasks <- task
+		c.reduceTasks <- task
 
-		log.Infof("C: Task '%v' out on channel", task.Name)
+		log.Debugf("C: Task '%v' out on channel", task.Name)
 
 		i = j
 	}
 
-	close(c.tasks)
+	log.Info("C: All Reduce tasks created")
+
+	close(c.reduceTasks)
 }
 
 func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	log.Infof("C: Preparing task for W %v", c.reduceReady)
-	log.Infof("W: %d Tasks left", len(c.tasks))
 	if !c.reduceReady {
+		log.Infof("C: %d Map Tasks left", len(c.mapTasks))
 		select {
-		case task := <-c.tasks:
+		case task := <-c.mapTasks:
+			log.Infof("C: Map Task found %v", task)
 			if task.Available && task.Which == "map" {
 				reply.Name = task.Name
 				reply.Which = task.Which
 				reply.FileName = task.FileName
 				reply.Available = false
 				return nil
+			} else {
+				log.Info("C: NO Map Task found")
+				go c.CreateReduceTasks()
+				reply.Which = "wait"
+				c.reduceReady = true
+				return nil
 			}
-		default:
-			go c.CreateReduceTasks()
-			reply.Which = "wait"
-			c.reduceReady = true
-			return nil
 		}
 	} else {
 		select {
-		case task := <-c.tasks:
+		case task := <-c.reduceTasks:
 			if task.Available && task.Which == "reduce" {
 				reply.Name = task.Name
 				reply.Which = task.Which
@@ -116,21 +127,21 @@ func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
 		}
 	}
 	reply.Which = "shutdown"
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.terminate = true
 	return nil
 }
 
 func (c *Coordinator) TakePairs(args *Task, reply *Args) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.pairs = append(c.pairs, args.Pairs...)
-	log.Infof("C: Task '%v' finished", args.Name)
+	log.Debugf("C: Task '%v' finished", args.Name)
 	return nil
 }
 
 func (c *Coordinator) ReceiveCount(args *Task, reply *Args) error {
 	fmt.Fprintf(c.outputFile, "%v %v\n", args.Key, args.Result)
-	log.Infof("C: Task '%v' finished", args.Name)
+	log.Debugf("C: Task '%v' finished", args.Name)
 	return nil
 }
 
@@ -176,8 +187,9 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c.outputFile, _ = os.Create(c.outputFileName)
 
 	c.nReduce = nReduce
-	c.tasks = make(chan Task)
+	c.mapTasks = make(chan Task)
 
+	log.Info("C: Creating Map tasks")
 	go func() {
 		for i, fileName := range files {
 			task := Task{}
@@ -185,10 +197,13 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 			task.FileName = fileName
 			task.Available = true
 			task.Name = task.Which + "-" + strconv.Itoa(i)
-			log.Infof("%T %v", task, task)
-			c.tasks <- task
+			log.Debugf("%T %v", task, task)
+			c.mapTasks <- task
 		}
+		log.Info("C: All Map tasks created")
+		close(c.mapTasks)
 	}()
+
 	c.server()
 	return &c
 }
