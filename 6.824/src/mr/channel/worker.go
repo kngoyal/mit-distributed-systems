@@ -40,7 +40,7 @@ func Worker(mapf func(string, string) []KeyValue,
 L:
 	for {
 		task := GetTask()
-		log.Info(task)
+		log.Debug(task)
 		switch task.Which {
 		case "map":
 			file, err := os.Open(task.FileName)
@@ -90,7 +90,7 @@ func CallExample() {
 }
 
 func GetTask() Task {
-	log.Info("W: Getting task from C")
+	log.Debug("W: Getting task from C")
 	args := Args{}
 	task := Task{}
 
@@ -104,7 +104,7 @@ func GetTask() Task {
 }
 
 func PutPairs(task Task) {
-	log.Infof("W: Sending '%v' task result to C", task.Name)
+	log.Debugf("W: Sending '%v' task result to C", task.Name)
 	args := Args{}
 
 	// send the RPC request, wait for the reply.
@@ -112,7 +112,7 @@ func PutPairs(task Task) {
 }
 
 func SendCount(task Task) {
-	log.Infof("W: Sending '%v' task result to C", task.Name)
+	log.Debugf("W: Sending '%v' task result to C", task.Name)
 	args := Args{}
 
 	// send the RPC request, wait for the reply.
