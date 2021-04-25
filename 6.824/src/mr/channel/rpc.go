@@ -46,7 +46,7 @@ type Task struct {
 // Can't use the current directory since
 // Athena AFS doesn't support UNIX-domain sockets.
 func coordinatorSock() string {
-	s := "/var/tmp/824-mr-wc"
+	s := "/var/tmp/824-mr-wc-"
 	s += strconv.Itoa(os.Getuid())
 	log.Debug("sockname: %s\n", s)
 	return s
