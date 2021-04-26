@@ -52,53 +52,50 @@ func (c *Coordinator) CreateReduceTasks() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	log.Info("C: Creating Reduce tasks")
-	c.reduceTasks = make(chan Task)
-
-	sort.Sort(ByKey(c.pairs))
 
 	i := 0
+	go func() {
+		for i < len(c.pairs) {
+			j := i + 1
 
-	for i < len(c.pairs) {
-		j := i + 1
+			for j < len(c.pairs) && c.pairs[i].Key == c.pairs[j].Key {
+				j++
+			}
 
-		for j < len(c.pairs) && c.pairs[i].Key == c.pairs[j].Key {
-			j++
+			task := Task{}
+			task.Which = "reduce"
+			task.Name = "reduce" + "-" + strconv.Itoa(i)
+			task.Key = c.pairs[i].Key
+			task.Available = true
+			task.Values = []string{}
+
+			for k := i; k < j; k++ {
+				task.Values = append(task.Values, c.pairs[k].Value)
+			}
+
+			log.Debugf("C: Task '%v' created", task.Name)
+
+			c.reduceTasks <- task
+
+			log.Debugf("C: Task '%v' out on channel", task.Name)
+
+			i = j
 		}
 
-		task := Task{}
-		task.Which = "reduce"
-		task.Name = "reduce" + "-" + strconv.Itoa(i)
-		task.Key = c.pairs[i].Key
-		task.Available = true
-		task.Values = []string{}
+		log.Info("C: All Reduce tasks created")
 
-		for k := i; k < j; k++ {
-			task.Values = append(task.Values, c.pairs[k].Value)
-		}
-
-		log.Debugf("C: Task '%v' created", task.Name)
-
-		c.reduceTasks <- task
-
-		log.Debugf("C: Task '%v' out on channel", task.Name)
-
-		i = j
-	}
-
-	log.Info("C: All Reduce tasks created")
-
-	close(c.reduceTasks)
+		close(c.reduceTasks)
+	}()
 }
 
 func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	log.Infof("C: Preparing task for W %v", c.reduceReady)
 	if !c.reduceReady {
-		log.Infof("C: %d Map Tasks left", len(c.mapTasks))
+		log.Infof("C: Preparing MAP task for W, reduceReady: %v", c.reduceReady)
 		select {
 		case task := <-c.mapTasks:
-			log.Infof("C: Map Task found %v", task)
+			log.Debugf("C: Map Task found %v", task)
 			if task.Available && task.Which == "map" {
 				reply.Name = task.Name
 				reply.Which = task.Which
@@ -107,15 +104,19 @@ func (c *Coordinator) GiveTask(args *Args, reply *Task) error {
 				return nil
 			} else {
 				log.Info("C: NO Map Task found")
+				c.reduceReady = true
+				c.reduceTasks = make(chan Task)
+				sort.Sort(ByKey(c.pairs))
 				go c.CreateReduceTasks()
 				reply.Which = "wait"
-				c.reduceReady = true
 				return nil
 			}
 		}
 	} else {
+		log.Infof("C: Preparing REDUCE task for W, reduceReady: %v", c.reduceReady)
 		select {
 		case task := <-c.reduceTasks:
+			log.Debugf("C: Reduce Task found %v", task)
 			if task.Available && task.Which == "reduce" {
 				reply.Name = task.Name
 				reply.Which = task.Which
