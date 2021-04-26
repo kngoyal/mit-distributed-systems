@@ -90,7 +90,7 @@ func CallExample() {
 }
 
 func GetTask() Task {
-	log.Debug("W: Getting task from C")
+	log.Info("W: Getting task from C")
 	args := Args{}
 	task := Task{}
 
