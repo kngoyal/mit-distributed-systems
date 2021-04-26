@@ -1,12 +1,18 @@
 package main
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 func main() {
 	counter := 0
+	var mu sync.Mutex
 	for i := 0; i < 1000; i++ {
 		go func() {
+			mu.Lock()
 			counter = counter + 1
+			mu.Unlock()
 		}()
 	}
 
