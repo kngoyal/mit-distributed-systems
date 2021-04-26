@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	mr "github.com/mit-distributed-systems/6.824/src/mr/channel"
+	mr "github.com/mit-distributed-systems/6.824/src/mr/concurrent"
 )
 
 func nparallel(phase string) int {

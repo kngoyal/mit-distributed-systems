@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode"
 
-	mr "github.com/mit-distributed-systems/6.824/src/mr/channel"
+	mr "github.com/mit-distributed-systems/6.824/src/mr/concurrent"
 )
 
 //
