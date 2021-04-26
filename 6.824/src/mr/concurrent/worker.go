@@ -1,10 +1,13 @@
-package mr
+package mrconcurrent
 
 import (
 	"fmt"
 	"hash/fnv"
-	"log"
+	"io/ioutil"
 	"net/rpc"
+	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 //
@@ -32,9 +35,34 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
-
 	// uncomment to send the Example RPC to the coordinator.
-	// CallExample()
+	CallExample()
+L:
+	for {
+		task := GetTask()
+		log.Debug(task)
+		switch task.Which {
+		case "map":
+			file, err := os.Open(task.FileName)
+			if err != nil {
+				log.Fatalf("WORKER : cannot open '%v'", task.FileName)
+			}
+			content, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatalf("WORKER : cannot read '%v'", task.FileName)
+			}
+			file.Close()
+			task.Pairs = mapf(task.FileName, string(content))
+			PutPairs(task)
+		case "reduce":
+			task.Result = reducef(task.Key, task.Values)
+			SendCount(task)
+		case "wait":
+			continue L
+		case "shutdown":
+			break L
+		}
+	}
 
 }
 
@@ -61,6 +89,36 @@ func CallExample() {
 	fmt.Printf("reply.Y %v\n", reply.Y)
 }
 
+func GetTask() Task {
+	log.Debug("W: Getting task from C")
+	args := Args{}
+	task := Task{}
+
+	// send the RPC request, wait for the reply.
+	call("Coordinator.GiveTask", &args, &task)
+
+	// var task Task
+	log.Debug("W: Received task '%v' from C\n", task.Name)
+
+	return task
+}
+
+func PutPairs(task Task) {
+	log.Debug("W: Sending '%v' task result to C\n", task.Name)
+	args := Args{}
+
+	// send the RPC request, wait for the reply.
+	call("Coordinator.TakePairs", &task, &args)
+}
+
+func SendCount(task Task) {
+	log.Debug("W: Sending '%v' task result to C\n", task.Name)
+	args := Args{}
+
+	// send the RPC request, wait for the reply.
+	call("Coordinator.ReceiveCount", &task, &args)
+}
+
 //
 // send an RPC request to the coordinator, wait for the response.
 // usually returns true.
@@ -80,6 +138,6 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 		return true
 	}
 
-	fmt.Println(err)
+	log.Error(err)
 	return false
 }

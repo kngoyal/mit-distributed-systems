@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode"
 
-	"6.824/mr"
+	mr "github.com/mit-distributed-systems/6.824/src/mr/concurrent"
 )
 
 //
