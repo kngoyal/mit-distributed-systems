@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+export GO111MODULE=on
+alias timeout="gtimeout"
+export GO_LOG_LEVEL="info"
+
 #
 # basic map-reduce test
 #
