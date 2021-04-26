@@ -2,7 +2,7 @@
 
 export GO111MODULE=on
 alias timeout="gtimeout"
-export GO_LOG_LEVEL="info"
+export GO_LOG_LEVEL="warn"
 
 #
 # basic map-reduce test
