@@ -1,8 +1,10 @@
 package main
 
-import "sync"
-import "time"
-import "fmt"
+import (
+	"fmt"
+	"sync"
+	"time"
+)
 
 func main() {
 	alice := 10000

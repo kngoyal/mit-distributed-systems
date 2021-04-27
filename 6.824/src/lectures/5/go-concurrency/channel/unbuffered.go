@@ -1,7 +1,9 @@
 package main
 
-import "time"
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 func main() {
 	c := make(chan bool)

@@ -1,7 +1,9 @@
 package main
 
-import "sync"
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 func main() {
 	counter := 0
