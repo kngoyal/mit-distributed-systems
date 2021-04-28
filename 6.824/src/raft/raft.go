@@ -23,7 +23,7 @@ import (
 	"sync/atomic"
 
 	//	"6.824/labgob"
-	"6.824/labrpc"
+	labrpc "github.com/mit-distributed-systems/6.824/src/labrpc"
 )
 
 //
