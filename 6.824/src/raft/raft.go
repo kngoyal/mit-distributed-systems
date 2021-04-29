@@ -19,6 +19,7 @@ package raft
 
 import (
 	//	"bytes"
+
 	"sync"
 	"sync/atomic"
 
@@ -90,7 +91,11 @@ type Raft struct {
 	matchIndex []int
 
 	// auxillary
-	state State
+	state       State
+	voteCount   int
+	applyCh     chan ApplyMsg
+	stepDownCh  chan bool
+	grantVoteCh chan bool
 }
 
 // return currentTerm and whether this server
@@ -184,10 +189,86 @@ type RequestVoteReply struct {
 }
 
 //
+// get the index of the last log entry
+// lock must be held before calling this method
+//
+func (rf *Raft) getLastIndex() int {
+	return len(rf.log) - 1
+}
+
+//
+// get the term of the last log entry
+// lock must be held before calling this method
+//
+func (rf *Raft) getLastTerm() int {
+	return rf.log[rf.getLastIndex()].Term
+}
+
+//
+// candidate’s log is atleast as up-to-date as receiver’s log,
+// lock must be held before calling this method
+//
+func (rf *Raft) isLogUpToDate(cLastIndex int, cLastTerm int) bool {
+	myLastIndex, myLastTerm := rf.getLastIndex(), rf.getLastTerm()
+
+	if cLastTerm == myLastTerm {
+		return cLastIndex >= myLastIndex
+	}
+	return cLastTerm > myLastTerm
+}
+
+//
+// step down to Follower when getting higher term,
+// lock must be held before calling this method
+//
+func (rf *Raft) stepDownToFollower(term int) {
+	state := rf.state
+	rf.state = Follower
+	rf.currentTerm = term
+	rf.votedFor = -1
+	// step down if not follower, this check is needed
+	// to prevent race where state is already follower
+	if state != Follower {
+		rf.sendToChannel(rf.stepDownCh, true)
+	}
+}
+
+//
+// send value to an un-buffered channel without blocking
+//
+func (rf *Raft) sendToChannel(ch chan bool, value bool) {
+	select {
+	case ch <- value:
+	default:
+	}
+}
+
+//
 // example RequestVote RPC handler.
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	if args.Term < rf.currentTerm {
+		reply.Term = rf.currentTerm
+		reply.VoteGranted = false
+		return
+	}
+
+	if args.Term > rf.currentTerm {
+		rf.stepDownToFollower(args.Term)
+	}
+
+	reply.Term = rf.currentTerm
+	reply.VoteGranted = false
+
+	if (rf.votedFor < 0 || rf.votedFor == args.CandidateId) &&
+		rf.isLogUpToDate(args.LastLogIndex, args.LastLogTerm) {
+		reply.VoteGranted = true
+		rf.votedFor = args.CandidateId
+		rf.sendToChannel(rf.grantVoteCh, true)
+	}
 }
 
 //
