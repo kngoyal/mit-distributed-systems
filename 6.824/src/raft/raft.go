@@ -389,6 +389,34 @@ type AppendEntriesReply struct {
 }
 
 //
+// broadcast AppendEntries RPCs to all peers in parallel
+// lock must be held before calling this
+//
+func (rf *Raft) broadcastAppendEntries() {
+	if rf.state != Leader {
+		return
+	}
+
+	for server := range rf.peers {
+		if server != rf.me {
+			args := AppendEntriesArgs{}
+			args.Term = rf.me
+			args.LeaderId = rf.me
+			args.PrevLogIndex = rf.nextIndex[server] - 1
+			args.PrevLogTerm = rf.log[args.PrevLogIndex].Term
+			args.LeaderCommit = rf.commitIndex
+			entries := rf.log[rf.nextIndex[server]:]
+			args.Entries = make([]LogEntry, len(entries))
+			// make a deep copy of the entries to send
+			copy(args.Entries, entries)
+			go rf.sendAppendEntries(server, &args, &AppendEntriesReply{})
+		}
+
+	}
+
+}
+
+//
 // the service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log. if this
 // server isn't the leader, returns false. otherwise start the
@@ -455,6 +483,7 @@ func (rf *Raft) convertToLeader() {
 		rf.nextIndex[peer] = lastIndex
 	}
 
+	rf.broadcastAppendEntries()
 }
 
 //
@@ -506,7 +535,10 @@ func (rf *Raft) ticker() {
 			select {
 			case <-rf.stepDownCh:
 				// state should already be a follower
-			default:
+			case <-time.After(120 * time.Millisecond):
+				rf.mu.Lock()
+				rf.broadcastAppendEntries()
+				rf.mu.Unlock()
 			}
 		case Follower:
 			select {
