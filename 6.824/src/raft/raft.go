@@ -98,6 +98,7 @@ type Raft struct {
 	applyCh     chan ApplyMsg
 	stepDownCh  chan bool
 	grantVoteCh chan bool
+	winElecCh   chan bool
 }
 
 // return currentTerm and whether this server
@@ -311,9 +312,33 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 // that the caller passes the address of the reply struct with &, not
 // the struct itself.
 //
-func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
+func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) {
 	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
-	return ok
+
+	if !ok {
+		return
+	}
+
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	if rf.state != Candidate || args.Term != rf.currentTerm || reply.Term < rf.currentTerm {
+		return
+	}
+
+	if reply.Term > rf.currentTerm {
+		rf.stepDownToFollower(args.Term)
+		rf.persist()
+		return
+	}
+
+	if reply.VoteGranted {
+		rf.voteCount++
+		// only send once when vote count just reaches majority
+		if rf.voteCount == len(rf.peers)/2+1 {
+			rf.sendToChannel(rf.winElecCh, true)
+		}
+	}
 }
 
 //
@@ -415,6 +440,7 @@ func (rf *Raft) convertToCandidate(fromState State) {
 func (rf *Raft) resetChannels() {
 	rf.stepDownCh = make(chan bool)
 	rf.grantVoteCh = make(chan bool)
+	rf.winElecCh = make(chan bool)
 }
 
 // The ticker go routine starts a new election if this peer hasn't received
@@ -440,6 +466,15 @@ func (rf *Raft) ticker() {
 			select {
 			case <-time.After(rf.getElectionTimeout() * time.Millisecond):
 				rf.convertToCandidate(Follower)
+			}
+		case Candidate:
+			select {
+			case <-rf.stepDownCh:
+				// state should already be a follower
+			case <-rf.winElecCh:
+				rf.convertToLeader()
+			case <-time.After(rf.getElectionTimeout() * time.Millisecond):
+				rf.convertToCandidate(Candidate)
 			}
 		}
 	}
@@ -480,6 +515,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.applyCh = applyCh
 	rf.stepDownCh = make(chan bool)
 	rf.grantVoteCh = make(chan bool)
+	rf.winElecCh = make(chan bool)
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
