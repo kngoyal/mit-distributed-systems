@@ -20,8 +20,10 @@ package raft
 import (
 	//	"bytes"
 
+	"math/rand"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	//	"6.824/labgob"
 	labrpc "github.com/mit-distributed-systems/6.824/src/labrpc"
@@ -234,6 +236,13 @@ func (rf *Raft) stepDownToFollower(term int) {
 }
 
 //
+// get random election time out
+//
+func (rf *Raft) getElectionTimeout() time.Duration {
+	return time.Duration(360 + rand.Intn(240))
+}
+
+//
 // send value to an un-buffered channel without blocking
 //
 func (rf *Raft) sendToChannel(ch chan bool, value bool) {
@@ -250,6 +259,8 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
+	defer rf.persist()
+
 	if args.Term < rf.currentTerm {
 		reply.Term = rf.currentTerm
 		reply.VoteGranted = false
@@ -350,6 +361,38 @@ func (rf *Raft) killed() bool {
 	return z == 1
 }
 
+//
+// convert the raft state to candidate
+//
+func (rf *Raft) convertToCandidate(fromState State) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	// this check is needed to prevent race
+	// while waiting on multiple channels
+	if rf.state != fromState {
+		return
+	}
+
+	rf.resetChannels()
+	rf.state = Candidate
+	rf.currentTerm++
+	rf.votedFor = rf.me
+	rf.voteCount = 1
+	rf.persist()
+
+	rf.broadcastRequestVote()
+}
+
+//
+// reset the channels, needed when converting the state
+// lock must be held before calling this
+//
+func (rf *Raft) resetChannels() {
+	rf.stepDownCh = make(chan bool)
+	rf.grantVoteCh = make(chan bool)
+}
+
 // The ticker go routine starts a new election if this peer hasn't received
 // heartsbeats recently.
 func (rf *Raft) ticker() {
@@ -368,8 +411,13 @@ func (rf *Raft) ticker() {
 				// state should already be a follower
 			default:
 			}
-		}
 
+		case Follower:
+			select {
+			case <-time.After(rf.getElectionTimeout() * time.Millisecond):
+				rf.convertToCandidate(Follower)
+			}
+		}
 	}
 }
 
