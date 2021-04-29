@@ -362,7 +362,6 @@ func (rf *Raft) broadcastRequestVote() {
 			go rf.sendRequestVote(server, &args, &RequestVoteReply{})
 		}
 	}
-
 }
 
 //
@@ -408,6 +407,30 @@ func (rf *Raft) Kill() {
 func (rf *Raft) killed() bool {
 	z := atomic.LoadInt32(&rf.dead)
 	return z == 1
+}
+
+//
+// convert the raft state to leader
+//
+func (rf *Raft) convertToLeader() {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	// this check is needed to prevent race
+	// while waiting on multiple channels
+	if rf.state != Candidate {
+		return
+	}
+
+	rf.resetChannels()
+	rf.state = Leader
+	rf.nextIndex = make([]int, len(rf.peers))
+	rf.matchIndex = make([]int, len(rf.peers))
+	lastIndex := rf.getLastIndex() + 1
+	for peer := range rf.peers {
+		rf.nextIndex[peer] = lastIndex
+	}
+
 }
 
 //
