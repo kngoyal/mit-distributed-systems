@@ -358,6 +358,17 @@ func (rf *Raft) ticker() {
 		// Your code here to check if a leader election should
 		// be started and to randomize sleeping time using
 		// time.Sleep().
+		rf.mu.Lock()
+		state := rf.state
+		rf.mu.Unlock()
+		switch state {
+		case Leader:
+			select {
+			case <-rf.stepDownCh:
+				// state should already be a follower
+			default:
+			}
+		}
 
 	}
 }
