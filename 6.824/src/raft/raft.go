@@ -342,7 +342,7 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 }
 
 //
-// broadcast RequestVote RPCs to all peers in parallel,
+// broadcast RequestVote RPCs to all peers in parallel.
 // lock must be held before calling this
 //
 func (rf *Raft) broadcastRequestVote() {
@@ -362,6 +362,30 @@ func (rf *Raft) broadcastRequestVote() {
 			go rf.sendRequestVote(server, &args, &RequestVoteReply{})
 		}
 	}
+}
+
+//
+// example AppendEntries RPC arguments structure.
+// field names must start with capital letters!
+//
+type AppendEntriesArgs struct {
+	// Your data here (2A, 2B).
+	Term         int
+	LeaderId     int
+	PrevLogIndex int
+	PrevLogTerm  int
+	LeaderCommit int
+	Entries      []LogEntry
+}
+
+//
+// example AppendEntries RPC reply structure.
+// field names must start with capital letters!
+//
+type AppendEntriesReply struct {
+	// Your data here (2A).
+	Term    int
+	Success bool
 }
 
 //
@@ -484,7 +508,6 @@ func (rf *Raft) ticker() {
 				// state should already be a follower
 			default:
 			}
-
 		case Follower:
 			select {
 			case <-time.After(rf.getElectionTimeout() * time.Millisecond):
