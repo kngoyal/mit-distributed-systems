@@ -20,12 +20,13 @@ package raft
 import (
 	//	"bytes"
 
+	"bytes"
 	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	//	"6.824/labgob"
+	labgob "github.com/mit-distributed-systems/6.824/src/labgob"
 	labrpc "github.com/mit-distributed-systems/6.824/src/labrpc"
 )
 
@@ -119,13 +120,13 @@ func (rf *Raft) GetState() (int, bool) {
 //
 func (rf *Raft) persist() {
 	// Your code here (2C).
-	// Example:
-	// w := new(bytes.Buffer)
-	// e := labgob.NewEncoder(w)
-	// e.Encode(rf.xxx)
-	// e.Encode(rf.yyy)
-	// data := w.Bytes()
-	// rf.persister.SaveRaftState(data)
+	w := new(bytes.Buffer)
+	e := labgob.NewEncoder(w)
+	if e.Encode(rf.currentTerm) != nil || e.Encode(rf.votedFor) != nil || e.Encode(rf.log) != nil {
+		panic("FAILED to encode raft persistent state")
+	}
+	data := w.Bytes()
+	rf.persister.SaveRaftState(data)
 }
 
 //
