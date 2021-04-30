@@ -99,6 +99,7 @@ type Raft struct {
 	stepDownCh  chan bool
 	grantVoteCh chan bool
 	winElecCh   chan bool
+	heartbeatCh chan bool
 }
 
 // return currentTerm and whether this server
@@ -254,23 +255,6 @@ func (rf *Raft) sendToChannel(ch chan bool, value bool) {
 }
 
 //
-// apply the committed logs.
-//
-func (rf *Raft) applyLogs() {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-
-	for i := rf.lastApplied + 1; i <= rf.commitIndex; i++ {
-		rf.applyCh <- ApplyMsg{
-			CommandValid: true,
-			Command:      rf.log[i].Command,
-			CommandIndex: i,
-		}
-		rf.lastApplied = i
-	}
-}
-
-//
 // example RequestVote RPC handler.
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
@@ -405,6 +389,91 @@ type AppendEntriesReply struct {
 	Success       bool
 	ConflictIndex int
 	ConflictTerm  int
+}
+
+//
+// AppendEntries RPC handler
+//
+func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	if args.Term < rf.currentTerm {
+		reply.Term = rf.currentTerm
+		reply.ConflictIndex = -1
+		reply.ConflictTerm = -1
+		reply.Success = false
+		return
+	}
+
+	if args.Term > rf.currentTerm {
+		rf.stepDownToFollower(args.Term)
+	}
+
+	lastIndex := rf.getLastIndex()
+	rf.sendToChannel(rf.heartbeatCh, true)
+
+	reply.Term = rf.currentTerm
+	reply.Success = false
+	reply.ConflictIndex = -1
+	reply.ConflictTerm = -1
+
+	// follower log is shorter than leader
+	if args.PrevLogIndex > lastIndex {
+		reply.ConflictIndex = lastIndex + 1
+		return
+	}
+
+	// log consistency check fails, i.e. different term at prevLogIndex
+	if cfTerm := rf.log[args.PrevLogIndex].Term; cfTerm != args.PrevLogTerm {
+		reply.ConflictTerm = cfTerm
+		for i := args.PrevLogIndex; i >= 0 && rf.log[i].Term == cfTerm; i-- {
+			reply.ConflictIndex = i
+		}
+		reply.Success = false
+		return
+	}
+
+	// only truncate log if an existing entry conflicts with a new one
+	i, j := args.PrevLogIndex+1, 0
+	for ; i < lastIndex+1 && j < len(args.Entries); i, j = i+1, j+1 {
+		if rf.log[i].Term != args.Entries[j].Term {
+			break
+		}
+	}
+	rf.log = rf.log[:i]
+	args.Entries = args.Entries[j:]
+	rf.log = append(rf.log, args.Entries...)
+
+	reply.Success = true
+
+	// update commitIndex to min(leaderCommit, lastIndex)
+	if args.LeaderCommit > rf.commitIndex {
+		lastIndex = rf.getLastIndex()
+		if args.LeaderCommit < lastIndex {
+			rf.commitIndex = args.LeaderCommit
+		} else {
+			rf.commitIndex = lastIndex
+		}
+		go rf.applyLogs()
+	}
+}
+
+//
+// apply the committed logs.
+//
+func (rf *Raft) applyLogs() {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	for i := rf.lastApplied + 1; i <= rf.commitIndex; i++ {
+		rf.applyCh <- ApplyMsg{
+			CommandValid: true,
+			Command:      rf.log[i].Command,
+			CommandIndex: i,
+		}
+		rf.lastApplied = i
+	}
 }
 
 //
@@ -608,6 +677,7 @@ func (rf *Raft) resetChannels() {
 	rf.stepDownCh = make(chan bool)
 	rf.grantVoteCh = make(chan bool)
 	rf.winElecCh = make(chan bool)
+	rf.heartbeatCh = make(chan bool)
 }
 
 // The ticker go routine starts a new election if this peer hasn't received
@@ -633,6 +703,8 @@ func (rf *Raft) ticker() {
 			}
 		case Follower:
 			select {
+			case <-rf.grantVoteCh:
+			case <-rf.heartbeatCh:
 			case <-time.After(rf.getElectionTimeout() * time.Millisecond):
 				rf.convertToCandidate(Follower)
 			}
@@ -685,6 +757,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.stepDownCh = make(chan bool)
 	rf.grantVoteCh = make(chan bool)
 	rf.winElecCh = make(chan bool)
+	rf.heartbeatCh = make(chan bool)
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
