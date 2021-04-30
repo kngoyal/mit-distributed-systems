@@ -254,6 +254,23 @@ func (rf *Raft) sendToChannel(ch chan bool, value bool) {
 }
 
 //
+// apply the committed logs.
+//
+func (rf *Raft) applyLogs() {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	for i := rf.lastApplied + 1; i <= rf.commitIndex; i++ {
+		rf.applyCh <- ApplyMsg{
+			CommandValid: true,
+			Command:      rf.log[i].Command,
+			CommandIndex: i,
+		}
+		rf.lastApplied = i
+	}
+}
+
+//
 // example RequestVote RPC handler.
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
@@ -384,8 +401,82 @@ type AppendEntriesArgs struct {
 //
 type AppendEntriesReply struct {
 	// Your data here (2A).
-	Term    int
-	Success bool
+	Term          int
+	Success       bool
+	ConflictIndex int
+	ConflictTerm  int
+}
+
+//
+// send AppendEntries RPC to server
+//
+func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) {
+	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
+
+	if !ok {
+		return
+	}
+
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	defer rf.persist()
+
+	if rf.state != Leader || args.Term != rf.currentTerm || reply.Term < rf.currentTerm {
+		return
+	}
+
+	if reply.Term > rf.currentTerm {
+		rf.stepDownToFollower(args.Term)
+		return
+	}
+
+	// update matchIndex and nextIndex of the follower
+	if reply.Success {
+		// match index should not regress in case of stale RPC response
+		newMatchIndex := args.PrevLogIndex + len(args.Entries)
+		if newMatchIndex > rf.matchIndex[server] {
+			rf.matchIndex[server] = newMatchIndex
+		}
+		rf.nextIndex[server] = rf.matchIndex[server] + 1
+	} else if reply.ConflictTerm < 0 {
+		// follower's log shorter than leader's
+		rf.nextIndex[server] = reply.ConflictIndex
+		rf.matchIndex[server] = rf.nextIndex[server] - 1
+	} else {
+		// try to find the conflictTerm in the log
+		newNextIndex := rf.getLastIndex()
+		for ; newNextIndex >= 0; newNextIndex-- {
+			if rf.log[newNextIndex].Term == reply.ConflictTerm {
+				break
+			}
+		}
+		// if not found, set nextIndex to conflictIndex
+		if newNextIndex < 0 {
+			rf.nextIndex[server] = reply.ConflictIndex
+		} else {
+			rf.nextIndex[server] = newNextIndex
+		}
+		rf.matchIndex[server] = rf.nextIndex[server] - 1
+	}
+
+	// if there exists an N such that N > commitIndex, a majority of
+	// matchIndex[i] >= N, and log[N].term == currentTerm, set commitIndex = N
+	for n := rf.getLastIndex(); n >= rf.commitIndex; n-- {
+		count := 1
+		if rf.log[n].Term == rf.currentTerm {
+			for i := 0; i < len(rf.peers); i++ {
+				if i != rf.me && rf.matchIndex[i] >= n {
+					count++
+				}
+			}
+		}
+		if count > len(rf.peers)/2 {
+			rf.commitIndex = n
+			go rf.applyLogs()
+			break
+		}
+	}
+
 }
 
 //
