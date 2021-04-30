@@ -591,13 +591,19 @@ func (rf *Raft) broadcastAppendEntries() {
 // the leader.
 //
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
-	term := -1
-	isLeader := true
-
 	// Your code here (2B).
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 
-	return index, term, isLeader
+	if rf.state != Leader {
+		return -1, rf.currentTerm, false
+	}
+
+	term := rf.currentTerm
+	rf.log = append(rf.log, LogEntry{term, command})
+	rf.persist()
+
+	return rf.getLastIndex(), term, true
 }
 
 //
